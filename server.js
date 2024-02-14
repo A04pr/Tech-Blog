@@ -1,6 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const session = require('express-session');
+const SequelizeStore = require('connect-session-sequelize')(session.Store);
 const path = require('path');
 const db = require('./config/connection');
 const routes = require('./routes');
@@ -12,9 +13,12 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(session({
-  secret: 'secretkey',
+  secret: 'thisisasecretkey', 
   resave: false,
-  saveUninitialized: true,
+  saveUninitialized: false,
+  store: new SequelizeStore({
+    db: sequelize,
+  }),
 }));
 
 app.use(routes);
