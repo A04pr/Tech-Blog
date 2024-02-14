@@ -24,7 +24,7 @@ Post.init(
       allowNull: false,
       references: {
         model: 'user',
-        key: 'id',
+        key: 'user_id',
       },
     },
     created_on: {
