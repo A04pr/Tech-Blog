@@ -1,0 +1,16 @@
+<h1>Welcome, {{user.username}}!</h1>
+<ul>
+  {{#each user.posts}}
+    <li>
+      <h2>{{title}}</h2>
+      <p>Posted on {{createdAt}}</p>
+      <a href="/posts/{{id}}">View</a>
+      <form action="/api/posts/{{id}}" method="POST">
+        <input type="hidden" name="_method" value="DELETE">
+        <button type="submit">Delete</button>
+      </form>
+    </li>
+  {{/each}}
+</ul>
+
+<a href="/dashboard/new">Create New Post</a>

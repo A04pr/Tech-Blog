@@ -1,0 +1,8 @@
+<h1>{{post.title}}</h1>
+<p>Posted by {{post.user.username}} on {{post.createdAt}}</p>
+<p>{{post.content}}</p>
+
+<form action="/api/comments" method="POST">
+  <textarea name="comment_text" placeholder="Leave a comment"></textarea>
+  <button type="submit">Submit</button>
+</form>

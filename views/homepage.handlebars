@@ -1,0 +1,10 @@
+<h1>Homepage</h1>
+<ul>
+  {{#each posts}}
+    <li>
+      <h2>{{title}}</h2>
+      <p>Posted by {{user.username}} on {{createdAt}}</p>
+      <p>{{content}}</p>
+    </li>
+  {{/each}}
+</ul>
