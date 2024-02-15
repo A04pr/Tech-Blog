@@ -1,87 +1,80 @@
 const router = require('express').Router();
-const { User, Post } = require('../models');
+const { User, Post, Comment } = require('../models');
+const withAuth = require('../utils/auth');
 
-router.get('/', async (req, res) => {
-  try {
-    if (!req.session.loggedIn) {
-      res.redirect('/login');
-      return;
-    }
-
-    const userData = await User.findByPk(req.session.user_id, {
-      include: [{ model: Post }],
-    });
-
-    const user = userData.get({ plain: true });
-
-    res.render('dashboard', { 
-      user, 
-      loggedIn: req.session.loggedIn 
-    });
-  } catch (err) {
-    console.log(err);
-    res.status(500).json(err);
-  }
-});
-
-router.get('/new', async (req, res) => {
-  try {
-    if (!req.session.loggedIn) {
-      res.redirect('/login');
-      return;
-    }
-
-    res.render('new-post', { loggedIn: req.session.loggedIn });
-  } catch (err) {
-    console.log(err);
-    res.status(500).json(err);
-  }
-});
-
-router.post('/new', async (req, res) => {
-  try {
-    if (!req.session.loggedIn) {
-      res.redirect('/login');
-      return;
-    }
-
-    const newPost = await Post.create({
-      title: req.body.title,
-      content: req.body.content,
-      user_id: req.session.user_id,
-    });
-
-    res.status(200).json(newPost);
-  } catch (err) {
-    console.log(err);
-    res.status(500).json(err);
-  }
-});
-
-router.delete('/:id', async (req, res) => {
-  try {
-    if (!req.session.loggedIn) {
-      res.redirect('/login');
-      return;
-    }
-
-    const deletedPost = await Post.destroy({
-      where: {
-        id: req.params.id,
-        user_id: req.session.user_id, 
+router.get('/', withAuth, (req, res) => {
+  Post.findAll({
+    where: {
+      user_id: req.session.user_id
+    },
+    attributes: ['post_id', 'title', 'content', 'created_on'],
+    order: [['created_on', 'DESC']],
+    include: [
+      {
+        model: User,
+        attributes: ['username']
       },
-    });
-
-    if (!deletedPost) {
-      res.status(404).json({ message: 'No post found with this id' });
-      return;
-    }
-
-    res.status(200).json({ message: 'Post deleted successfully' });
-  } catch (err) {
+      {
+        model: Comment,
+        attributes: ['comment_id', 'comment_text', 'post_id', 'user_id', 'created_at'],
+        include: {
+          model: User,
+          attributes: ['username']
+        }
+      }
+    ]
+  })
+  .then(dbPostData => {
+    const posts = dbPostData.map(post => post.get({ plain: true }));
+    res.render('dashboard', { posts, loggedIn: true });
+  })
+  .catch(err => {
     console.log(err);
     res.status(500).json(err);
-  }
+  });
 });
+
+router.get('/edit/:id', withAuth, (req, res) => {
+  Post.findOne({
+    where: {
+      post_id: req.params.post_id
+    },
+    attributes: ['post_id', 'title', 'content', 'created_on'],
+    include: [
+      {
+        model: User,
+        attributes: ['username']
+      },
+      {
+        model: Comment,
+        attributes: ['comment_id', 'comment_text', 'post_id', 'user_id', 'created_at'],
+        include: {
+          model: User,
+          attributes: ['username']
+        }
+      }
+    ]
+  })
+    .then(dbPostData => {
+      if (!dbPostData) {
+        res.status(404).json({ message: 'No post found with this id' });
+        return;
+      }
+      const post = dbPostData.get({ plain: true });
+      res.render('edit-post', {
+        post,
+        loggedIn: req.session.loggedIn
+      });
+    })
+    .catch(err => {
+      console.log(err);
+      res.status(500).json(err);
+    });
+});
+
+router.get('/new', (req, res) => {
+  res.render('new-post');
+});
+
 
 module.exports = router;

@@ -1,73 +1,139 @@
-const express = require('express');
-const router = express.Router();
-const { User } = require('../../models');
+const router = require('express').Router();
+const { User, Post, Comment } = require('../../models');
+const withAuth = require('../../utils/auth');
 
-router.get('/', async (req, res) => {
-  try {
-    const users = await User.findAll();
-    res.json(users);
-  } catch (error) {
-    console.error('Error getting users:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
+router.get('/', (req, res) => {
+  User.findAll({
+    attributes: { exclude: ['password'] }
+  })
+  .then(dbUserData => res.json(dbUserData))
+  .catch(err => {
+    console.log(err);
+    res.status(500).json(err);
+  });
 });
 
-router.get('/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-    const user = await User.findByPk(id);
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
+router.get('/:id', (req, res) => {
+  User.findOne({
+    attributes: { exclude: ['password'] },
+    where: {
+      user_id: req.params.user_id
+    },
+    include: [
+      {
+        model: Post,
+        attributes: ['post_id', 'title', 'content', 'created_on']
+      },
+      {
+        model: Comment,
+        attributes: ['comment_id', 'comment_text', 'created_at']
+      }
+    ]
+  })
+  .then(dbUserData => {
+    if (!dbUserData) {
+      res.status(404).json({ message: 'No User found with this id' });
+      return;
     }
-    res.json(user);
-  } catch (error) {
-    console.error('Error getting user by ID:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
+  })
+  .catch(err => {
+    console.log(err);
+    res.status(500).json(err);
+  });
 });
 
-router.post('/', async (req, res) => {
-  try {
-    const { username, password } = req.body;
-    const newUser = await User.create({ username, password });
-    res.status(201).json(newUser);
-  } catch (error) {
-    console.error('Error creating user:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
+router.post('/', (req, res) => {
+  User.create({
+    username: req.body.username,
+    password: req.body.password
+  })
+  .then(dbUserData => {
+    req.session.save(() => {
+      req.session.user_id = dbUserData.id;
+      req.session.username = dbUserData.username;
+      req.session.loggedIn = true;
+
+      res.json(dbUserData)
+    })
+  })    
+  .catch(err => {
+    console.log(err);
+    res.status(500).json(err);
+  });
 });
 
-router.put('/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { username, password } = req.body;
-
-    const user = await User.findByPk(id);
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
+router.post('/login', (req, res) => {
+  User.findOne({
+    where: {
+      username: req.body.username
     }
-
-    await user.update({ username, password });
-    res.json({ message: 'User updated successfully' });
-  } catch (error) {
-    console.error('Error updating user:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-router.delete('/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-    const user = await User.findByPk(id);
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
+  })
+  .then(dbUserData => {
+    if(!dbUserData) {
+      res.status(400).json({ message: 'Username not Found' });
+      return;
     }
-    await user.destroy();
-    res.json({ message: 'User deleted successfully' });
-  } catch (error) {
-    console.error('Error deleting user:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    const validPassword = dbUserData.checkPassword(req.body.password);
+    if (!validPassword) {
+      res.status(400).json({ message: 'Incorrect Password' });
+      return;
+    }
+    req.session.save(() => {
+      req.session.user_id = dbUserData.id;
+      req.session.username = dbUserData.username;
+      req.session.loggedIn = true;
+      res.json({user: dbUserData, message: 'You are now logged in!' });
+    });
+  });
+});
+
+router.post('/logout', (req, res) => {
+  if (req.session.loggedIn) {
+    req.session.destroy(() => {
+      res.status(204).end();
+    })
+  } else {
+    res.status(404).end();
   }
 });
+
+router.put('/:id', (req, res) => {
+  User.update(req.body, {
+    individualHooks: true,
+    where: {
+      user_id: req.params.user_id
+    }
+  })
+  .then(dbUserData => {
+    if (!dbUserData[0]) {
+      res.status(404).json({ message: 'No User found with this id' });
+      return;
+    }
+    res.json(dbUserData);
+  })
+  .catch(err => {
+    res.status(500).json(err);
+  });
+});
+
+router.delete('/:id', (req, res) => {
+  User.destroy({
+    where: {
+      user_id: req.params.user_id
+    }
+  })
+  .then(dbUserData => {
+    if (!dbUserData) {
+      res.status(404).json({ message: 'No User found with this id' });
+      return;
+    }
+    res.json(dbUserData);
+  })
+  .catch(err => {
+    console.log(err);
+    res.status(500).json(err);
+  });
+});
+
 
 module.exports = router;
