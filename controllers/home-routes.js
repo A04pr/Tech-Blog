@@ -1,89 +1,104 @@
 const router = require('express').Router();
-const { User, Post, Comment } = require('../models');
+const sequelize = require('../config/connection');
+const { Post, User, Comment } = require('../models');
 
-router.get('/', async (req, res) => {
-  try {
-    const postData = await Post.findAll({
-      include: [
-        {
+router.get('/', (req, res) => {
+  Post.findAll({
+    attributes: [
+      'post_id',
+      'title',
+      "post_text",
+      'created_at'      
+    ],
+    include: [
+      {
+        model: Comment,
+        attributes: [
+            'comment_id', 
+            'comment_text', 
+            'post_id', 
+            'user_id', 
+            'created_at'],
+        include: {
           model: User,
-          attributes: ['username'],
-        },
-        {
-          model: Comment,
-          attributes: ['comment_text', 'user_id'],
-          include: {
-            model: User,
-            attributes: ['username'],
-          },
-        },
-      ],
+          attributes: ['username']
+        }
+      },
+      {
+        model: User,
+        attributes: ['username']
+      }
+    ]
+  })
+    .then(dbPostData => {
+      const posts = dbPostData.map(post => post.get({ plain: true }));
+      res.render('homepage', { 
+        posts,
+        loggedIn: req.session.loggedIn 
+      });
+    })
+    .catch(err => {
+      console.log(err);
+      res.status(500).json(err);
     });
+});
 
-    const posts = postData.map((post) => post.get({ plain: true }));
+router.get('/login', (req, res) => {
+  if (req.session.loggedIn) {
+    res.redirect('/');
+    return;
+  }
+  res.render('login');
+});
 
-    res.render('homepage', { posts });
-  } catch (err) {
+router.get('/post/:id', (req, res) => {
+  Post.findOne({
+    where: {
+      id: req.params.id
+    },
+    attributes: [
+      'post_id',
+      'title',
+      'content',
+      'created_on'
+    ],
+    include: [
+      {
+        model: Comment,
+        attributes: [
+          'comment_id',
+          'comment_text',
+          'post_id',
+          'user_id',
+          'created_at'
+        ],
+        include: {
+          model: User,
+          attributes: ['username']
+        }
+      },
+      {
+        model: User,
+        attributes: ['username']
+      }
+    ]
+  })
+  .then(dbPostData => {
+    if (!dbPostData) {
+      res.status(404).json({ message: 'No Post found with this id' });
+      return;
+    }
+    const post = dbPostData.get({ plain: true });
+
+    res.render('single-post', {
+      post, 
+      loggedIn: req.session.loggedIn
+    });
+  })
+  .catch(err => {
     console.log(err);
     res.status(500).json(err);
-  }
+  });
 });
-
-router.get('/dashboard', (req, res) => {
-  if (req.session.loggedIn) {
-    res.render('dashboard');
-  } else {
-    res.redirect('/login');
-  }
-});
-
-router.post('/signup', async (req, res) => {
-    try {
-      const hashedPassword = await bcrypt.hash(req.body.password, 10);
-  
-      const newUser = await User.create({
-        username: req.body.username,
-        password: hashedPassword,
-      });
-  
-      req.session.loggedIn = true;
-      req.session.userId = newUser.id;
-  
-      res.status(200).json(newUser);
-    } catch (err) {
-      console.log(err);
-      res.status(500).json(err);
-    }
-  });
-  
-  router.post('/login', async (req, res) => {
-    try {
-      const user = await User.findOne({ where: { username: req.body.username } });
-  
-      if (!user || !(await user.checkPassword(req.body.password))) {
-        res.status(400).json({ message: 'Incorrect username or password' });
-        return;
-      }
-  
-      req.session.loggedIn = true;
-      req.session.userId = user.id;
-  
-      res.status(200).json({ message: 'Login successful' });
-    } catch (err) {
-      console.log(err);
-      res.status(500).json(err);
-    }
-  });
-  
-  router.post('/logout', (req, res) => {
-    try {
-      req.session.destroy(() => {
-        res.status(200).json({ message: 'Logout successful' });
-      });
-    } catch (err) {
-      console.log(err);
-      res.status(500).json(err);
-    }
-  });
 
 module.exports = router;

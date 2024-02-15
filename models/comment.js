@@ -20,7 +20,7 @@ Comment.init(
       allowNull: false,
       references: {
         model: 'user',
-        key: 'id',
+        key: 'user_id',
       },
     },
     post_id: {
